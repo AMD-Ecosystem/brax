@@ -436,7 +436,7 @@ def train(
     (key_dagger, env_state, training_state), b_metrics = jax.lax.scan(
         dagger_step,
         (key_dagger, env_state, training_state),
-        length=dagger_steps_per_eval,  # pyrefly: ignore[bad-argument-type]
+        length=dagger_steps_per_eval,
     )
     jax.tree_util.tree_map(lambda x: x.block_until_ready(), b_metrics)
     t1 = time.monotonic()

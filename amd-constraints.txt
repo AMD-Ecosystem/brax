@@ -1,0 +1,31 @@
+# AMD ROCm constraints for brax
+#
+# Defensive pins so no CUDA JAX plugin is ever pulled in transitively when
+# brax and its deps (jax>=0.11, jaxlib>=0.11, mujoco-mjx) are resolved against
+# the public AMD ROCm index. brax carries zero native code; GPU compute rides
+# the JAX/XLA framework, so the only thing to guard is the JAX device plugin.
+#
+# The ROCm JAX device is provided by:
+# jax-rocm10-plugin, jax-rocm10-pjrt (from https://stable.repo.amd.com/rocm/whl-next/)
+# and MUST NOT be shadowed by any CUDA plugin/wheel.
+#
+# Use as BOTH: pip install -c amd-constraints.txt ... (and --build-constraint where a build resolves deps)
+
+# CUDA JAX device plugin wheels -- forbid
+jax-cuda12-plugin==0
+jax-cuda12-pjrt==0
+jax-cuda11-plugin==0
+jax-cuda11-pjrt==0
+
+# NVIDIA CUDA runtime wheels pulled by jax[cuda12] extras -- forbid
+nvidia-cublas-cu12==0
+nvidia-cuda-cupti-cu12==0
+nvidia-cuda-nvcc-cu12==0
+nvidia-cuda-nvrtc-cu12==0
+nvidia-cuda-runtime-cu12==0
+nvidia-cudnn-cu12==0
+nvidia-cufft-cu12==0
+nvidia-cusolver-cu12==0
+nvidia-cusparse-cu12==0
+nvidia-nccl-cu12==0
+nvidia-nvjitlink-cu12==0

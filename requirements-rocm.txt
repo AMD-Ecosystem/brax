@@ -1,0 +1,30 @@
+# brax on AMD ROCm -- install recipe (framework-transparent JAX enablement)
+#
+# brax itself needs NO source edits to run on AMD Instinct GPUs; GPU compute is
+# delivered by the JAX/XLA framework. This file pins the ROCm-flavoured JAX stack.
+#
+# Install order matters -- the ROCm SDK userspace + the ROCm JAX device plugin
+# come from the PUBLIC AMD index, jax/jaxlib come from PyPI:
+#
+# # 1. public ROCm 10.0.0 userspace (pick the device wheel for your arch)
+# pip install --index-url https://stable.repo.amd.com/rocm/whl-next/ \
+# 'rocm[libraries,devel,device-gfx942]' # or device-gfx950
+#
+# # 2. JAX core from PyPI + the ROCm-10 PJRT device plugin from the AMD index
+# pip install -c amd-constraints.txt 'jax>=0.11' 'jaxlib>=0.11'
+# pip install --index-url https://stable.repo.amd.com/rocm/whl-next/ \
+# -c amd-constraints.txt jax-rocm10-plugin jax-rocm10-pjrt
+#
+# # 3. brax from source + the JAX physics/RL stack
+# pip install -c amd-constraints.txt -e .
+# pip install -c amd-constraints.txt mujoco-mjx pytest transforms3d gym dm_env
+#
+# Verify: python -c "import jax; print(jax.devices())" -> [RocmDevice(id=0), ...]
+#
+# Validated versions (gfx942 / MI300X, ROCm 10.0.0 public wheels, 2026-08-31):
+jax>=0.11 # validated 0.11.1
+jaxlib>=0.11 # validated 0.11.1
+# from https://stable.repo.amd.com/rocm/whl-next/ :
+# jax-rocm10-plugin==0.11.0+rocm10.0.0
+# jax-rocm10-pjrt==0.11.0+rocm10.0.0
+mujoco-mjx # validated mujoco / mujoco-mjx 3.12.0
