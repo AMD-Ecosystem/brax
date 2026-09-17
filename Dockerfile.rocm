@@ -1,0 +1,69 @@
+# Copyright (C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# brax on AMD ROCm -- framework-transparent JAX enablement image.
+#
+# DEFAULTS TO ROCm. brax carries zero native code; GPU compute rides the JAX/XLA
+# ROCm backend (jax-rocm10-plugin / jax-rocm10-pjrt), installed from the PUBLIC
+# AMD ROCm index alongside the public ROCm 10.0.0 SDK userspace wheels.
+#
+# Build:
+#   docker build -f Dockerfile.rocm --build-arg AMDGPU_TARGET=gfx942 -t brax-rocm .
+#   docker build -f Dockerfile.rocm --build-arg AMDGPU_TARGET=gfx950 -t brax-rocm .
+# Run (grant the GPU + KFD to the container):
+#   docker run --rm -it --device=/dev/kfd --device=/dev/dri \
+#       --security-opt seccomp=unconfined --group-add video brax-rocm \
+#       python -c "import jax; print(jax.devices())"
+#
+# CUDA is NOT the default here; for an NVIDIA build use upstream's CUDA instructions
+# (the non-default path).
+
+FROM ubuntu:24.04
+
+ARG AMDGPU_TARGET=gfx942
+ARG ROCM_INDEX=https://stable.repo.amd.com/rocm/whl-next/
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_ROOT_USER_ACTION=ignore \
+    PYTHONWARNINGS=ignore
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.12 python3.12-venv python3-pip git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3.12 -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+RUN pip install --upgrade pip
+
+WORKDIR /opt/brax
+COPY amd-constraints.txt ./
+
+# 1. Public ROCm 10.0.0 userspace (arch-specific device wheel)
+RUN pip install --index-url ${ROCM_INDEX} \
+        "rocm[libraries,devel,device-${AMDGPU_TARGET}]"
+
+# 2. JAX core (PyPI) + ROCm-10 PJRT device plugin (public AMD index)
+RUN pip install -c amd-constraints.txt 'jax>=0.11' 'jaxlib>=0.11' \
+    && pip install --index-url ${ROCM_INDEX} -c amd-constraints.txt \
+        jax-rocm10-plugin jax-rocm10-pjrt
+
+# 3. brax from source + the JAX physics/RL stack
+COPY . /opt/brax
+RUN pip install -c amd-constraints.txt -e . \
+    && pip install -c amd-constraints.txt mujoco-mjx pytest transforms3d gym dm_env
+
+# Verify the ROCm device is visible at build time (fails the build if not)
+RUN python -c "import jax; d=jax.devices(); print('JAX devices:', d); assert any('rocm' in str(x).lower() or 'Rocm' in type(x).__name__ for x in d), 'no ROCm device'"
+
+CMD ["python", "-c", "import jax; from brax import envs; import jax.numpy as jnp; env=envs.get_environment('ant'); s=jax.jit(env.reset)(jax.random.PRNGKey(0)); print('brax ant reset on', s.obs.device, 'obs', s.obs.shape)"]
